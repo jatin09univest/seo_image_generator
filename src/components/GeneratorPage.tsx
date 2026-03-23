@@ -1,0 +1,393 @@
+"use client";
+import { useState, useCallback, useEffect } from "react";
+import { TemplateType, GenerationRecord } from "@/lib/types";
+import { buildPrompt } from "@/lib/prompt-builder";
+import { imageCache } from "@/lib/cache";
+import { compressImageForStorage } from "@/lib/storage";
+import { getTemplate } from "@/lib/templates";
+import { useImageGeneration } from "@/hooks/useImageGeneration";
+import { useGenerationHistory } from "@/hooks/useGenerationHistory";
+import { useParallelGeneration } from "@/hooks/useParallelGeneration";
+import TemplateSelector from "./TemplateSelector";
+import TemplateForm from "./TemplateForm";
+import PromptPreview from "./PromptPreview";
+import ImagePreview from "./ImagePreview";
+import GenerationHistory from "./GenerationHistory";
+import { Sparkles, Layers, Trash2, ChevronDown, ChevronUp, RefreshCw, X } from "lucide-react";
+
+export default function GeneratorPage() {
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateType | null>(null);
+  const [fieldValues, setFieldValues] = useState<Record<string, string>>({});
+  const [prompt, setPrompt] = useState("");
+  const [contract, setContract] = useState<import("@/lib/types").ContractResult | null>(null);
+  const [buildError, setBuildError] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showVariants, setShowVariants] = useState(false);
+  const [selectedVariant, setSelectedVariant] = useState<string | null>(null);
+  const [cacheCleared, setCacheCleared] = useState(false);
+
+  const genHook = useImageGeneration();
+  const historyHook = useGenerationHistory();
+  const parallelHook = useParallelGeneration();
+
+  // Rebuild prompt whenever template or values change
+  useEffect(() => {
+    if (!selectedTemplate) {
+      setPrompt("");
+      setContract(null);
+      setBuildError(null);
+      return;
+    }
+    const template = getTemplate(selectedTemplate);
+    if (!template) return;
+
+    // Check required fields are filled
+    const requiredFields = template.fields.filter(f => f.required);
+    const allFilled = requiredFields.every(f => fieldValues[f.name]?.trim());
+    if (!allFilled) {
+      setPrompt("");
+      setContract(null);
+      setBuildError(null);
+      return;
+    }
+
+    try {
+      const result = buildPrompt(selectedTemplate, fieldValues);
+      setPrompt(result.prompt);
+      setContract(result.contract);
+      setBuildError(null);
+    } catch (err) {
+      setBuildError(err instanceof Error ? err.message : "Failed to build prompt");
+      setPrompt("");
+      setContract(null);
+    }
+  }, [selectedTemplate, fieldValues]);
+
+  const handleFieldChange = useCallback((name: string, value: string) => {
+    setFieldValues(prev => ({ ...prev, [name]: value }));
+  }, []);
+
+  const handleTemplateSelect = useCallback((id: TemplateType) => {
+    setSelectedTemplate(id);
+    setFieldValues({});
+    setPrompt("");
+    setContract(null);
+    setBuildError(null);
+    genHook.reset();
+    parallelHook.reset();
+    setShowVariants(false);
+    setSelectedVariant(null);
+  }, [genHook, parallelHook]);
+
+  // Save to history after successful generation
+  const saveToHistory = useCallback(async (imageData: string, usedPrompt: string) => {
+    if (!selectedTemplate) return;
+    const companyName = fieldValues.companyName || fieldValues.stockName || fieldValues.headlineText || "Unknown";
+    const compressed = await compressImageForStorage(imageData);
+    const record: GenerationRecord = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      templateType: selectedTemplate,
+      companyName,
+      prompt: usedPrompt,
+      imageUrl: compressed,
+      fullImageUrl: imageData,
+      createdAt: new Date().toISOString(),
+      favorite: false,
+      tags: [selectedTemplate],
+    };
+    historyHook.add(record);
+  }, [selectedTemplate, fieldValues, historyHook]);
+
+  const handleGenerate = useCallback(async () => {
+    if (!prompt) return;
+    setShowVariants(false);
+    setSelectedVariant(null);
+    const result = await genHook.generate({ prompt });
+    if (result) {
+      await saveToHistory(result, prompt);
+    }
+  }, [prompt, genHook, saveToHistory]);
+
+  const handleGenerateVariants = useCallback(async () => {
+    if (!prompt) return;
+    setShowVariants(true);
+    setSelectedVariant(null);
+    await parallelHook.generateVariants(prompt, 3);
+  }, [prompt, parallelHook]);
+
+  const handleSelectVariant = useCallback(async (imageData: string) => {
+    setSelectedVariant(imageData);
+    await saveToHistory(imageData, prompt);
+  }, [saveToHistory, prompt]);
+
+  const handleClearCache = useCallback(async () => {
+    await imageCache.clear();
+    setCacheCleared(true);
+    setTimeout(() => setCacheCleared(false), 2000);
+  }, []);
+
+  const handleSelectHistoryRecord = useCallback((record: GenerationRecord) => {
+    if (record.fullImageUrl || record.imageUrl) {
+      // Restore template selection and values for re-generation
+      setSelectedTemplate(record.templateType);
+    }
+  }, []);
+
+  const template = selectedTemplate ? getTemplate(selectedTemplate) : null;
+
+  const canGenerate = !!prompt && !genHook.loading && !buildError;
+  const activeImageData = selectedVariant || genHook.imageData;
+
+  return (
+    <div className="min-h-screen flex flex-col" style={{ background: "var(--background)" }}>
+      {/* Header */}
+      <header className="sticky top-0 z-40 border-b backdrop-blur-md"
+        style={{ background: "rgba(13,17,23,0.9)", borderColor: "var(--border)" }}>
+        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
+              <Sparkles className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                Univest
+              </span>
+              <span className="text-sm ml-1.5 font-normal" style={{ color: "var(--text-muted)" }}>
+                SEO Image Generator
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={handleClearCache}
+            className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg transition-colors hover:bg-white/5"
+            style={{ color: cacheCleared ? "#34d399" : "var(--text-muted)", border: "1px solid var(--border)" }}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            {cacheCleared ? "Cache cleared!" : "Clear cache"}
+          </button>
+        </div>
+      </header>
+
+      {/* Main */}
+      <main className="flex-1 max-w-screen-xl mx-auto w-full px-4 sm:px-6 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          {/* ── LEFT PANEL: Form ── */}
+          <div className="lg:col-span-2 space-y-5">
+
+            {/* Template selector */}
+            <section className="rounded-2xl p-4 sm:p-5"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <TemplateSelector selected={selectedTemplate} onSelect={handleTemplateSelect} />
+            </section>
+
+            {/* Form */}
+            {template && (
+              <section className="rounded-2xl p-4 sm:p-5 animate-fade-in"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                <p className="text-[11px] font-semibold uppercase tracking-widest mb-4"
+                  style={{ color: "var(--text-muted)" }}>
+                  {template.name} Details
+                </p>
+                <TemplateForm
+                  template={template}
+                  values={fieldValues}
+                  onChange={handleFieldChange}
+                />
+              </section>
+            )}
+
+            {/* Build error */}
+            {buildError && (
+              <div className="px-4 py-3 rounded-xl text-sm"
+                style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171" }}>
+                {buildError}
+              </div>
+            )}
+
+            {/* Prompt preview */}
+            {template && (
+              <PromptPreview
+                prompt={prompt}
+                onPromptChange={setPrompt}
+                contract={contract}
+              />
+            )}
+
+            {/* Generate buttons */}
+            {template && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  onClick={handleGenerate}
+                  disabled={!canGenerate}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed hover:brightness-110"
+                  style={{ background: canGenerate ? "var(--primary)" : "var(--bg-elevated)", color: "#fff" }}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {genHook.loading ? `Generating${genHook.retryCount > 0 ? ` (retry ${genHook.retryCount}/3)` : "..."}` : "Generate Image"}
+                </button>
+
+                <button
+                  onClick={handleGenerateVariants}
+                  disabled={!canGenerate || parallelHook.isGenerating}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium text-sm transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border-bright)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  <Layers className="w-4 h-4" />
+                  {parallelHook.isGenerating ? "Generating..." : "3 Variants"}
+                </button>
+              </div>
+            )}
+
+            {/* No template selected hint */}
+            {!template && (
+              <div className="text-center py-8">
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+                  Select a template above to get started
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* ── RIGHT PANEL: Preview + History ── */}
+          <div className="space-y-5">
+
+            {/* Image preview */}
+            <section className="rounded-2xl p-4 sm:p-5"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <p className="text-[11px] font-semibold uppercase tracking-widest mb-4"
+                style={{ color: "var(--text-muted)" }}>
+                Preview
+              </p>
+              <ImagePreview
+                imageData={activeImageData}
+                loading={genHook.loading}
+                retryCount={genHook.retryCount}
+                fromCache={genHook.fromCache}
+                validation={genHook.validation}
+                error={genHook.error}
+                onRetry={handleGenerate}
+                companyName={fieldValues.companyName || fieldValues.stockName || "image"}
+                templateType={selectedTemplate || "seo"}
+              />
+            </section>
+
+            {/* History panel */}
+            <section className="rounded-2xl overflow-hidden"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <button
+                onClick={() => setShowHistory(v => !v)}
+                className="w-full flex items-center justify-between px-4 sm:px-5 py-3 hover:bg-white/5 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold uppercase tracking-widest"
+                    style={{ color: "var(--text-muted)" }}>
+                    History
+                  </span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium"
+                    style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}>
+                    {historyHook.totalCount}
+                  </span>
+                </div>
+                {showHistory
+                  ? <ChevronUp className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                  : <ChevronDown className="w-4 h-4" style={{ color: "var(--text-muted)" }} />}
+              </button>
+              {showHistory && (
+                <div className="px-4 sm:px-5 pb-4 max-h-[500px] overflow-y-auto animate-fade-in">
+                  <GenerationHistory
+                    history={historyHook.history}
+                    totalCount={historyHook.totalCount}
+                    searchQuery={historyHook.searchQuery}
+                    setSearchQuery={historyHook.setSearchQuery}
+                    filterType={historyHook.filterType}
+                    setFilterType={historyHook.setFilterType}
+                    favoritesOnly={historyHook.favoritesOnly}
+                    setFavoritesOnly={historyHook.setFavoritesOnly}
+                    onToggleFavorite={historyHook.toggleFav}
+                    onDelete={historyHook.remove}
+                    onClear={historyHook.clear}
+                    onExport={historyHook.doExport}
+                    onSelect={handleSelectHistoryRecord}
+                  />
+                </div>
+              )}
+            </section>
+          </div>
+        </div>
+
+        {/* ── VARIANTS GRID ── */}
+        {showVariants && parallelHook.variants.length > 0 && (
+          <section className="mt-6 rounded-2xl p-4 sm:p-5 animate-fade-in"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <div className="flex items-center justify-between mb-4">
+              <p className="text-[11px] font-semibold uppercase tracking-widest"
+                style={{ color: "var(--text-muted)" }}>
+                Variants — Click to select
+              </p>
+              <button
+                onClick={() => { parallelHook.reset(); setShowVariants(false); setSelectedVariant(null); }}
+                className="p-1.5 rounded-lg hover:bg-white/10 transition-colors"
+                style={{ color: "var(--text-muted)" }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {parallelHook.variants.map(v => (
+                <div key={v.id} className="space-y-2">
+                  <div
+                    className={`relative rounded-xl overflow-hidden cursor-pointer transition-all ${
+                      selectedVariant === v.imageData && v.imageData ? "ring-2 ring-blue-500" : "hover:opacity-90"
+                    }`}
+                    onClick={() => v.imageData && handleSelectVariant(v.imageData)}
+                    style={{ aspectRatio: "16/9", background: "var(--bg-elevated)" }}
+                  >
+                    {v.loading ? (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                        <div className="w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+                        <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+                          Variant {v.id + 1}
+                        </span>
+                      </div>
+                    ) : v.error ? (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 p-3">
+                        <span className="text-[11px] text-red-400 text-center">{v.error}</span>
+                        <button
+                          onClick={e => { e.stopPropagation(); handleGenerateVariants(); }}
+                          className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md mt-1"
+                          style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
+                        >
+                          <RefreshCw className="w-3 h-3" /> Retry
+                        </button>
+                      </div>
+                    ) : v.imageData ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={v.imageData} alt={`Variant ${v.id + 1}`}
+                        className="w-full h-full object-contain" style={{ background: "#000" }} />
+                    ) : null}
+
+                    {/* Selection indicator */}
+                    {selectedVariant === v.imageData && v.imageData && (
+                      <div className="absolute top-1.5 left-1.5 text-[10px] px-2 py-0.5 rounded-full bg-blue-600 text-white font-medium">
+                        Selected
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-center" style={{ color: "var(--text-muted)" }}>
+                    Variant {v.id + 1}
+                    {v.id === 1 ? " (alt angle)" : v.id === 2 ? " (alt lighting)" : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
