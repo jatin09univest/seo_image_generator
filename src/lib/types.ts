@@ -5,6 +5,22 @@ export type TemplateType =
   | "stock-guide"
   | "stock-overview";
 
+export interface PersonConfig {
+  gender: "Auto" | "Male" | "Female";
+  ageRange: "Auto" | "Young (20-30)" | "Middle-aged (30-45)" | "Senior (45+)";
+  emotion: "Auto" | "Confused" | "Shocked" | "Happy" | "Excited" | "Worried" | "Neutral" | "Angry" | "Thinking";
+  profession: "Auto" | "Doctor" | "Engineer" | "Business Executive" | "Investor" | "Scientist" | "Banker" | "Student" | "Casual";
+  attire: "Auto" | "Formal Suit" | "Business Casual" | "Lab Coat" | "Hard Hat + Safety Vest" | "Traditional Indian" | "Casual";
+}
+
+export const PERSON_DEFAULTS: PersonConfig = {
+  gender: "Auto",
+  ageRange: "Auto",
+  emotion: "Auto",
+  profession: "Auto",
+  attire: "Auto",
+};
+
 export interface TemplateField {
   name: string;
   label: string;
@@ -21,8 +37,17 @@ export interface TemplateDefinition {
   name: string;
   description: string;
   icon: string; // lucide icon name
+  hasPerson?: boolean;
   fields: TemplateField[];
-  buildPrompt: (values: Record<string, string>) => string;
+  buildPrompt: (values: Record<string, string>, personConfig?: PersonConfig) => string;
+}
+
+export interface ResolvedPerson {
+  gender: string;
+  age: string;
+  emotion: string;
+  profession: string;
+  attire: string;
 }
 
 export interface ContractResult {

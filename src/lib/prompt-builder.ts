@@ -1,4 +1,4 @@
-import { TemplateType, ContractResult } from "./types";
+import { TemplateType, ContractResult, PersonConfig } from "./types";
 import { getTemplate } from "./templates";
 import { enhancePrompt } from "./prompt-enhancer";
 import { injectBranding } from "./logo-injector";
@@ -8,6 +8,16 @@ export interface BuildResult {
   prompt: string;
   contract: ContractResult;
   enhanced: boolean;
+}
+
+function extractPersonConfig(values: Record<string, string>): PersonConfig {
+  return {
+    gender: (values.person_gender as PersonConfig["gender"]) || "Auto",
+    ageRange: (values.person_ageRange as PersonConfig["ageRange"]) || "Auto",
+    emotion: (values.person_emotion as PersonConfig["emotion"]) || "Auto",
+    profession: (values.person_profession as PersonConfig["profession"]) || "Auto",
+    attire: (values.person_attire as PersonConfig["attire"]) || "Auto",
+  };
 }
 
 export function buildPrompt(
@@ -25,7 +35,8 @@ export function buildPrompt(
   if (missing.length > 0) throw new Error(`Missing required fields: ${missing.join(", ")}`);
 
   // Build raw prompt
-  let prompt = template.buildPrompt(values);
+  const personConfig = template.hasPerson ? extractPersonConfig(values) : undefined;
+  let prompt = template.buildPrompt(values, personConfig);
 
   // Inject branding
   prompt = injectBranding(prompt);

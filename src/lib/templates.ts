@@ -1,5 +1,5 @@
-import { TemplateDefinition } from "./types";
-import { analyzeContext } from "./prompt-intelligence";
+import { TemplateDefinition, PersonConfig, PERSON_DEFAULTS } from "./types";
+import { analyzeContext, resolvePersonDescription } from "./prompt-intelligence";
 import { injectBranding, injectPhoneText } from "./logo-injector";
 
 const FOOTER_COMMON = (line1: string, line1Color: string, line2: string, line2Color: string, subtitle?: string) => `
@@ -32,6 +32,7 @@ export const TEMPLATES: TemplateDefinition[] = [
     name: "IPO GMP",
     description: "Grey Market Premium data with confused person holding phone",
     icon: "TrendingUp",
+    hasPerson: true,
     fields: [
       { name: "companyName", label: "Company Name", type: "text", placeholder: "e.g. Novus Loyalty", required: true },
       { name: "gmpPrice", label: "GMP Price (₹)", type: "number", placeholder: "e.g. 42", required: true },
@@ -39,8 +40,14 @@ export const TEMPLATES: TemplateDefinition[] = [
       { name: "estListingPrice", label: "Est. Listing Price (₹)", type: "number", placeholder: "e.g. 182", required: true },
       { name: "seoTitle", label: "SEO Title", type: "text", placeholder: "e.g. Novus Loyalty IPO GMP Today", required: false, defaultValue: "" },
     ],
-    buildPrompt: (v) => {
+    buildPrompt: (v, personConfig) => {
       const intel = analyzeContext(v.companyName, v.seoTitle || `${v.companyName} IPO GMP`);
+      const person = resolvePersonDescription(
+        personConfig || PERSON_DEFAULTS,
+        v.companyName,
+        v.seoTitle || `${v.companyName} IPO GMP`,
+        "confused / worried"
+      );
       const raw = `16:9 YouTube finance thumbnail, premium financial-news editorial style.
 
 Top Section (Top 50–55%)
@@ -58,9 +65,9 @@ Add subtle "UNIVEST" watermark text repeated across the background at low opacit
 
 Person Requirement
 
-Show one confused / worried Indian ${intel.personAppearance} reacting to IPO GMP data.
-Expression: confused / concerned while thinking
-Age: 25–40
+Show one ${person.emotion} Indian ${person.gender ? person.gender + " " : ""}${person.profession}${person.attire ? " " + person.attire : ""} reacting to IPO GMP data.
+Expression: ${person.emotion} while thinking
+Age: ${person.age}
 Position: center aligned, holding smartphone
 The person should be unique and different-looking with a unique expression.
 
@@ -91,6 +98,7 @@ File size: less than 2MB`;
     name: "IPO Allotment",
     description: "Allotment status with shocked person holding phone",
     icon: "ClipboardList",
+    hasPerson: true,
     fields: [
       { name: "companyName", label: "Company Name", type: "text", placeholder: "e.g. Novus Loyalty", required: true },
       { name: "allotmentStatus", label: "Allotment Status", type: "select", options: ["NOT ALLOTTED", "ALLOTTED"], required: true, defaultValue: "NOT ALLOTTED" },
@@ -98,8 +106,16 @@ File size: less than 2MB`;
       { name: "sharesAllotted", label: "Shares Allotted", type: "number", placeholder: "e.g. 0", required: true },
       { name: "investorId", label: "Investor ID (masked)", type: "text", placeholder: "e.g. ******", required: false, defaultValue: "******" },
     ],
-    buildPrompt: (v) => {
+    buildPrompt: (v, personConfig) => {
       const isAllotted = v.allotmentStatus === "ALLOTTED";
+      const defaultEmotion = isAllotted ? "excited / happy" : "shocked / surprised";
+      const person = resolvePersonDescription(
+        personConfig || PERSON_DEFAULTS,
+        v.companyName,
+        `${v.companyName} IPO allotment`,
+        defaultEmotion,
+        "business professional or investor"
+      );
       const raw = `16:9 YouTube finance thumbnail, premium financial-news editorial style.
 
 Top Section (Top 50–55%)
@@ -117,9 +133,9 @@ Add subtle "UNIVEST" watermark text repeated across the background at low opacit
 
 Person Requirement
 
-Show one ${isAllotted ? "excited / happy" : "shocked / surprised"} Indian business professional or investor.
-Expression: ${isAllotted ? "very happy and excited" : "shocked / surprised / disbelieving"}
-Age: 25–40
+Show one ${person.emotion} Indian ${person.gender ? person.gender + " " : ""}${person.profession}${person.attire ? " " + person.attire : ""}.
+Expression: ${person.emotion}
+Age: ${person.age}
 Position: center, holding smartphone facing viewer
 The person should be unique with a unique expression.
 
@@ -147,6 +163,7 @@ File size: less than 2MB`;
     name: "IPO Listing",
     description: "Listing day with industry visuals and shocked person",
     icon: "Rocket",
+    hasPerson: true,
     fields: [
       { name: "companyName", label: "Company Name", type: "text", placeholder: "e.g. SEDEMAC Mechatronics", required: true },
       { name: "industry", label: "Industry (auto-detected if blank)", type: "text", placeholder: "e.g. automotive electronics", required: false, defaultValue: "" },
@@ -154,9 +171,15 @@ File size: less than 2MB`;
       { name: "listingPremium", label: "Listing Premium (%)", type: "number", placeholder: "e.g. 13.54", required: true },
       { name: "ipoPrice", label: "IPO Issue Price (₹)", type: "number", placeholder: "e.g. 1352", required: false },
     ],
-    buildPrompt: (v) => {
+    buildPrompt: (v, personConfig) => {
       const intel = analyzeContext(v.companyName, `${v.companyName} IPO listing`);
       const industry = v.industry || intel.detectedIndustry;
+      const person = resolvePersonDescription(
+        personConfig || PERSON_DEFAULTS,
+        v.companyName,
+        `${v.companyName} IPO listing`,
+        "shocked / surprised"
+      );
       const subtitle = `IPO Listing at ${v.listingPremium}% Premium at ₹${v.listingPrice} Per Share`;
       const raw = `16:9 YouTube finance thumbnail, premium financial-news editorial style.
 
@@ -177,9 +200,9 @@ Add subtle "UNIVEST" watermark text repeated across the background at low opacit
 
 Person Requirement
 
-Show one shocked Indian ${intel.personAppearance} reacting to IPO listing news.
-Expression: shocked / surprised while checking smartphone
-Age: 25–40
+Show one ${person.emotion} Indian ${person.gender ? person.gender + " " : ""}${person.profession}${person.attire ? " " + person.attire : ""} reacting to IPO listing news.
+Expression: ${person.emotion} while checking smartphone
+Age: ${person.age}
 Position: center aligned
 
 ⚠️ Important rules:

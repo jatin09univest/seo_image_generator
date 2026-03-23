@@ -1,4 +1,4 @@
-import { IntelligenceResult } from "./types";
+import { IntelligenceResult, PersonConfig, ResolvedPerson } from "./types";
 
 const INDUSTRY_MAP: Record<string, { industry: string; visuals: string[]; personAppearance: string }> = {
   // Technology / IT
@@ -133,4 +133,38 @@ export function analyzeContext(companyName: string, seoTitle: string): Intellige
     marketContext,
     colorTone,
   };
+}
+
+export function resolvePersonDescription(
+  config: PersonConfig,
+  companyName: string,
+  seoTitle: string,
+  templateDefaultEmotion: string,
+  templateDefaultProfession?: string
+): ResolvedPerson {
+  const intel = analyzeContext(companyName, seoTitle);
+
+  const gender = config.gender === "Auto" ? "" : config.gender.toLowerCase();
+
+  const ageMap: Record<string, string> = {
+    "Auto": "25-40",
+    "Young (20-30)": "20-30",
+    "Middle-aged (30-45)": "30-45",
+    "Senior (45+)": "45-60",
+  };
+  const age = ageMap[config.ageRange] || "25-40";
+
+  const emotion = config.emotion === "Auto"
+    ? templateDefaultEmotion
+    : config.emotion.toLowerCase();
+
+  const profession = config.profession === "Auto"
+    ? (templateDefaultProfession || intel.personAppearance)
+    : config.profession.toLowerCase();
+
+  const attire = config.attire === "Auto"
+    ? ""
+    : `wearing ${config.attire.toLowerCase()}`;
+
+  return { gender, age, emotion, profession, attire };
 }
