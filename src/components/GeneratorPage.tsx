@@ -280,7 +280,7 @@ export default function GeneratorPage() {
                   {/* Pill group */}
                   <div className="flex items-center gap-1">
                     <span className="text-[10px] mr-1" style={{ color: "var(--text-muted)" }}>Variants:</span>
-                    {[1,2,3,4,5,6,7].map(n => (
+                    {[1,2,3,4,5,6,7,8,9,10].map(n => (
                       <button
                         key={n}
                         type="button"
