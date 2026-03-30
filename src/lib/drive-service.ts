@@ -24,13 +24,23 @@ export async function uploadImageToDrive(
   fileName: string,
   imageDataUrl: string
 ): Promise<DriveUploadResult> {
-  const drive = google.drive({ version: "v3", auth });
-
   const [meta, base64Payload] = imageDataUrl.split(",");
   const mimeMatch = meta.match(/data:([^;]+)/);
   const mimeType = mimeMatch ? mimeMatch[1] : "image/png";
-
   const buffer = Buffer.from(base64Payload, "base64");
+
+  return uploadBufferToDrive(auth, folderId, fileName, buffer, mimeType);
+}
+
+export async function uploadBufferToDrive(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  auth: any,
+  folderId: string,
+  fileName: string,
+  buffer: Buffer,
+  mimeType: string
+): Promise<DriveUploadResult> {
+  const drive = google.drive({ version: "v3", auth });
   const stream = Readable.from(buffer);
 
   const createRes = await drive.files.create({

@@ -34,6 +34,7 @@ export default function GeneratorPage() {
   const [variantCount, setVariantCount] = useState(3);
   const [activeTab, setActiveTab] = useState<"generator" | "automation">("generator");
   const [downloadingZip, setDownloadingZip] = useState(false);
+  const [uploadingZip, setUploadingZip] = useState(false);
 
   const genHook = useImageGeneration();
   const historyHook = useGenerationHistory();
@@ -168,6 +169,38 @@ export default function GeneratorPage() {
       alert(err instanceof Error ? err.message : "Failed to build ZIP file");
     } finally {
       setDownloadingZip(false);
+    }
+  }, [bulkHook.variants, fieldValues]);
+
+  const handleUploadZipToDrive = useCallback(async () => {
+    const readyVariants = bulkHook.variants.filter((variant): variant is BulkVariantResult & { url: string } => !!variant.url);
+    if (readyVariants.length === 0) return;
+
+    setUploadingZip(true);
+    try {
+      const companyName = sanitizeFileName(getCompanyName(fieldValues));
+      const response = await fetch("/api/upload-variants-zip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyName,
+          urls: readyVariants.map((variant) => variant.url),
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || `Failed to upload ZIP (${response.status})`);
+      }
+
+      if (data.webViewLink) {
+        window.open(data.webViewLink, "_blank", "noopener,noreferrer");
+      }
+    } catch (err) {
+      console.error("Failed to upload ZIP", err);
+      alert(err instanceof Error ? err.message : "Failed to upload ZIP file");
+    } finally {
+      setUploadingZip(false);
     }
   }, [bulkHook.variants, fieldValues]);
 
@@ -458,6 +491,20 @@ export default function GeneratorPage() {
                     >
                       <Download className="w-3 h-3" />
                       {downloadingZip ? "Preparing ZIP..." : `ZIP: ${companyName}`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleUploadZipToDrive}
+                      disabled={uploadingZip}
+                      className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg transition-colors hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{
+                        background: "rgba(34,197,94,0.14)",
+                        border: "1px solid rgba(34,197,94,0.28)",
+                        color: "#86efac",
+                      }}
+                    >
+                      <Zap className="w-3 h-3" />
+                      {uploadingZip ? "Uploading ZIP..." : "Upload ZIP to Drive"}
                     </button>
                     {bulkHook.variants.filter(v => v.url).map(v => (
                       // eslint-disable-next-line @next/next/no-img-element

@@ -70,11 +70,13 @@ export default function AutomationPanel() {
             <p className="font-semibold" style={{ color: config.ok ? "#22c55e" : "#fbbf24" }}>
               {config.ok ? "All systems configured" : "Setup incomplete"}
             </p>
-            {config.serviceAccountEmail && (
-              <p style={{ color: "var(--text-muted)" }}>Service account: {config.serviceAccountEmail}</p>
+            {config.accountLabel && (
+              <p style={{ color: "var(--text-muted)" }}>
+                {config.authMode === "oauth_client" ? "OAuth client" : "Service account"}: {config.accountLabel}
+              </p>
             )}
             <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
-              <ConfigFlag label="Service Account" ok={config.configured.serviceAccount} />
+              <ConfigFlag label="Google Auth" ok={config.configured.googleAuth} />
               <ConfigFlag label="Drive Folder" ok={config.configured.defaultFolderId} />
               <ConfigFlag label="Univest API" ok={config.configured.univestApiToken} />
             </div>
@@ -252,11 +254,11 @@ export default function AutomationPanel() {
           </p>
           <ol className="text-xs space-y-2 list-decimal list-inside" style={{ color: "var(--text-secondary)" }}>
             <li>Create a Google Cloud project and enable <strong>Sheets API</strong> + <strong>Drive API</strong></li>
-            <li>Create a service account and download the JSON key</li>
-            <li>Add <code>GOOGLE_SERVICE_ACCOUNT_JSON</code> to <code>.env.local</code> (full JSON, single line)</li>
+            <li>Add either <code>GOOGLE_SERVICE_ACCOUNT_JSON</code> or <code>GOOGLE_OAUTH_CLIENT_JSON</code> to <code>.env.local</code></li>
+            <li>If using OAuth client JSON, add <code>GOOGLE_OAUTH_TOKEN_JSON</code> from your Python flow's <code>token.json</code>, or add <code>GOOGLE_OAUTH_REFRESH_TOKEN</code></li>
             <li>Add <code>GOOGLE_DRIVE_FOLDER_ID</code> to <code>.env.local</code></li>
-            <li>Share the Google Sheet with the service account email (Editor role)</li>
-            <li>Share the Drive folder with the service account email (Editor role)</li>
+            <li>If using a service account, share the Google Sheet and Drive folder with that service account email</li>
+            <li>If using OAuth client credentials, ensure the token belongs to a user with Drive access</li>
           </ol>
         </div>
       )}

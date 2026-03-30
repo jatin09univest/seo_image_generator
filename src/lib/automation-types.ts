@@ -37,9 +37,10 @@ export interface AutomationRunRequest {
 export interface ConfigStatus {
   ok: boolean;
   configured: {
-    serviceAccount: boolean;
+    googleAuth: boolean;
     defaultFolderId: boolean;
     univestApiToken: boolean;
   };
-  serviceAccountEmail?: string;
+  authMode?: "service_account" | "oauth_client";
+  accountLabel?: string;
 }
