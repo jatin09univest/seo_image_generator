@@ -8,6 +8,7 @@ const TEMPLATE_LIGHTING: Record<TemplateType, string> = {
   "ipo-listing": "cinematic high-contrast lighting, industry-specific environment",
   "stock-guide": "bright blue gradient, clean editorial lighting, professional financial backdrop",
   "stock-overview": "clean bright gradient blue, soft professional lighting, infographic style",
+  "quarterly-results": "clean blue gradient studio lighting, professional financial news aesthetic, high contrast financial figures",
 };
 
 export function enhancePrompt(rawPrompt: string, templateType: TemplateType): string {

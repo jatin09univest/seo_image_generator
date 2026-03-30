@@ -3,7 +3,8 @@ export type TemplateType =
   | "ipo-allotment"
   | "ipo-listing"
   | "stock-guide"
-  | "stock-overview";
+  | "stock-overview"
+  | "quarterly-results";
 
 export interface PersonConfig {
   gender: "Auto" | "Male" | "Female";
@@ -98,4 +99,11 @@ export interface GenerationState {
   retryCount: number;
   fromCache: boolean;
   validation: ValidationResult | null;
+}
+
+export interface BulkVariantResult {
+  id: number;
+  url: string | null;
+  loading: boolean;
+  error: string | null;
 }

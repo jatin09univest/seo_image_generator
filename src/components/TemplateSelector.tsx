@@ -2,7 +2,7 @@
 import { TEMPLATES } from "@/lib/templates";
 import { TemplateType } from "@/lib/types";
 import {
-  TrendingUp, ClipboardList, Rocket, BookOpen, LayoutGrid,
+  TrendingUp, ClipboardList, Rocket, BookOpen, LayoutGrid, BarChart2,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -11,6 +11,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Rocket,
   BookOpen,
   LayoutGrid,
+  BarChart2,
 };
 
 interface Props {
