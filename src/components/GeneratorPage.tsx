@@ -1,6 +1,7 @@
 "use client";
 import { useState, useCallback, useEffect } from "react";
 import { TemplateType, GenerationRecord, BulkVariantResult } from "@/lib/types";
+import { sanitizeFileName } from "@/lib/zip";
 import { buildPrompt } from "@/lib/prompt-builder";
 import { imageCache } from "@/lib/cache";
 import { compressImageForStorage } from "@/lib/storage";
@@ -13,8 +14,12 @@ import TemplateForm from "./TemplateForm";
 import PromptPreview from "./PromptPreview";
 import ImagePreview from "./ImagePreview";
 import GenerationHistory from "./GenerationHistory";
-import { Sparkles, Layers, Trash2, ChevronDown, ChevronUp, RefreshCw, X, Zap } from "lucide-react";
+import { Sparkles, Layers, Trash2, ChevronDown, ChevronUp, RefreshCw, X, Zap, Download } from "lucide-react";
 import AutomationPanel from "./AutomationPanel";
+
+function getCompanyName(values: Record<string, string>): string {
+  return values.companyName || values.stockName || values.headlineText || "Unknown";
+}
 
 export default function GeneratorPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType | null>(null);
@@ -28,6 +33,7 @@ export default function GeneratorPage() {
   const [cacheCleared, setCacheCleared] = useState(false);
   const [variantCount, setVariantCount] = useState(3);
   const [activeTab, setActiveTab] = useState<"generator" | "automation">("generator");
+  const [downloadingZip, setDownloadingZip] = useState(false);
 
   const genHook = useImageGeneration();
   const historyHook = useGenerationHistory();
@@ -130,6 +136,41 @@ export default function GeneratorPage() {
     setTimeout(() => setCacheCleared(false), 2000);
   }, []);
 
+  const handleDownloadAllZip = useCallback(async () => {
+    const readyVariants = bulkHook.variants.filter((variant): variant is BulkVariantResult & { url: string } => !!variant.url);
+    if (readyVariants.length === 0) return;
+
+    setDownloadingZip(true);
+    try {
+      const companyName = sanitizeFileName(getCompanyName(fieldValues));
+      const response = await fetch("/api/download-variants-zip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyName,
+          urls: readyVariants.map((variant) => variant.url),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to build ZIP (${response.status})`);
+      }
+      const zipBlob = await response.blob();
+      const url = URL.createObjectURL(zipBlob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${companyName}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to download ZIP", err);
+      alert(err instanceof Error ? err.message : "Failed to build ZIP file");
+    } finally {
+      setDownloadingZip(false);
+    }
+  }, [bulkHook.variants, fieldValues]);
+
   const handleSelectHistoryRecord = useCallback((record: GenerationRecord) => {
     if (record.fullImageUrl || record.imageUrl) {
       // Restore template selection and values for re-generation
@@ -138,6 +179,7 @@ export default function GeneratorPage() {
   }, []);
 
   const template = selectedTemplate ? getTemplate(selectedTemplate) : null;
+  const companyName = getCompanyName(fieldValues);
 
   const canGenerate = !!prompt && !genHook.loading && !buildError;
   const activeImageData = selectedVariant || genHook.imageData;
@@ -403,6 +445,20 @@ export default function GeneratorPage() {
                 {/* Download All */}
                 {bulkHook.variants.some(v => v.url) && !bulkHook.isGenerating && (
                   <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={handleDownloadAllZip}
+                      disabled={downloadingZip}
+                      className="flex items-center gap-1.5 text-[10px] px-2.5 py-1 rounded-lg transition-colors hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed"
+                      style={{
+                        background: "rgba(37,99,235,0.18)",
+                        border: "1px solid rgba(37,99,235,0.35)",
+                        color: "#93c5fd",
+                      }}
+                    >
+                      <Download className="w-3 h-3" />
+                      {downloadingZip ? "Preparing ZIP..." : `ZIP: ${companyName}`}
+                    </button>
                     {bulkHook.variants.filter(v => v.url).map(v => (
                       // eslint-disable-next-line @next/next/no-img-element
                       <a
