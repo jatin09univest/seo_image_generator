@@ -25,75 +25,112 @@ export function useImageGeneration() {
 
   const abortRef = useRef<AbortController | null>(null);
 
-  const generate = useCallback(async ({ prompt, simplifiedPrompt, onRetry }: GenerateOptions) => {
-    // Cancel any in-progress request
-    abortRef.current?.abort();
-    abortRef.current = new AbortController();
+  const generate = useCallback(
+    async ({ prompt, simplifiedPrompt, onRetry }: GenerateOptions) => {
+      // Cancel any in-progress request
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
 
-    setState({ loading: true, error: null, imageData: null, retryCount: 0, fromCache: false, validation: null });
+      setState({
+        loading: true,
+        error: null,
+        imageData: null,
+        retryCount: 0,
+        fromCache: false,
+        validation: null,
+      });
 
-    // Check cache first
-    const cached = await imageCache.get(prompt);
-    if (cached) {
-      const validation = validateImageData(cached.imageData);
-      setState({ loading: false, error: null, imageData: cached.imageData, retryCount: 0, fromCache: true, validation });
-      return cached.imageData;
-    }
-
-    let lastError = "Generation failed";
-
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      if (abortRef.current.signal.aborted) break;
-
-      try {
-        setState(prev => ({ ...prev, retryCount: attempt - 1 }));
-
-        const res = await fetch("/api/generate-image", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt, simplifiedPrompt }),
-          signal: abortRef.current.signal,
+      // Check cache first
+      const cached = await imageCache.get(prompt);
+      if (cached) {
+        const validation = validateImageData(cached.imageData);
+        setState({
+          loading: false,
+          error: null,
+          imageData: cached.imageData,
+          retryCount: 0,
+          fromCache: true,
+          validation,
         });
+        return cached.imageData;
+      }
 
-        const data = await res.json();
+      let lastError = "Generation failed";
 
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || `HTTP ${res.status}`);
-        }
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        if (abortRef.current.signal.aborted) break;
 
-        const imageData: string = data.imageData;
-        const validation = validateImageData(imageData);
+        try {
+          setState((prev) => ({ ...prev, retryCount: attempt - 1 }));
 
-        // Cache the result
-        await imageCache.set(prompt, imageData);
+          const res = await fetch(`${process.env.BASE_URL}generate-image`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt, simplifiedPrompt }),
+            signal: abortRef.current.signal,
+          });
 
-        setState({ loading: false, error: null, imageData, retryCount: attempt - 1, fromCache: false, validation });
-        return imageData;
-      } catch (err: unknown) {
-        if (err instanceof Error && err.name === "AbortError") break;
+          const data = await res.json();
 
-        lastError = err instanceof Error ? err.message : "Generation failed";
+          if (!res.ok || !data.success) {
+            throw new Error(data.error || `HTTP ${res.status}`);
+          }
 
-        // Non-retryable
-        if (lastError.includes("401") || lastError.includes("403") || lastError.includes("400")) {
-          break;
-        }
+          const imageData: string = data.imageData;
+          const validation = validateImageData(imageData);
 
-        if (attempt < MAX_RETRIES) {
-          onRetry?.(attempt);
-          setState(prev => ({ ...prev, retryCount: attempt }));
-          await new Promise(res => setTimeout(res, RETRY_DELAYS[attempt - 1]));
+          // Cache the result
+          await imageCache.set(prompt, imageData);
+
+          setState({
+            loading: false,
+            error: null,
+            imageData,
+            retryCount: attempt - 1,
+            fromCache: false,
+            validation,
+          });
+          return imageData;
+        } catch (err: unknown) {
+          if (err instanceof Error && err.name === "AbortError") break;
+
+          lastError = err instanceof Error ? err.message : "Generation failed";
+
+          // Non-retryable
+          if (
+            lastError.includes("401") ||
+            lastError.includes("403") ||
+            lastError.includes("400")
+          ) {
+            break;
+          }
+
+          if (attempt < MAX_RETRIES) {
+            onRetry?.(attempt);
+            setState((prev) => ({ ...prev, retryCount: attempt }));
+            await new Promise((res) =>
+              setTimeout(res, RETRY_DELAYS[attempt - 1]),
+            );
+          }
         }
       }
-    }
 
-    setState(prev => ({ ...prev, loading: false, error: lastError }));
-    return null;
-  }, []);
+      setState((prev) => ({ ...prev, loading: false, error: lastError }));
+      return null;
+    },
+    [],
+  );
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
-    setState({ loading: false, error: null, imageData: null, retryCount: 0, fromCache: false, validation: null });
+    setState({
+      loading: false,
+      error: null,
+      imageData: null,
+      retryCount: 0,
+      fromCache: false,
+      validation: null,
+    });
   }, []);
 
   return { ...state, generate, reset };

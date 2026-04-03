@@ -1,4 +1,6 @@
-const API_URL = process.env.UNIVEST_API_URL || "https://uat-api.univest.in/api/utility/generate-image";
+const API_URL =
+  process.env.UNIVEST_API_URL ||
+  "https://api.univest.in/api/utility/generate-image";
 const API_TOKEN = process.env.UNIVEST_API_TOKEN;
 
 /**
@@ -15,7 +17,7 @@ export async function generateImageFromPrompt(prompt: string): Promise<string> {
     const response = await fetch(API_URL, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${API_TOKEN}`,
+        Authorization: `Bearer ${API_TOKEN}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ text: prompt }),
@@ -26,7 +28,9 @@ export async function generateImageFromPrompt(prompt: string): Promise<string> {
 
     if (!response.ok) {
       const errText = await response.text().catch(() => "");
-      throw new Error(`API error ${response.status}: ${errText.substring(0, 200)}`);
+      throw new Error(
+        `API error ${response.status}: ${errText.substring(0, 200)}`,
+      );
     }
 
     const contentType = response.headers.get("content-type") || "";
@@ -48,7 +52,9 @@ export async function generateImageFromPrompt(prompt: string): Promise<string> {
       if (json.base64) return `data:image/png;base64,${json.base64}`;
       if (json.data?.base64) return `data:image/png;base64,${json.data.base64}`;
       console.error("Unknown JSON response shape:", Object.keys(json));
-      throw new Error("API returned JSON but image URL/base64 not found in response");
+      throw new Error(
+        "API returned JSON but image URL/base64 not found in response",
+      );
     }
 
     const text = await response.text();

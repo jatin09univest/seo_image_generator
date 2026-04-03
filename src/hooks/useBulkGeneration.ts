@@ -17,7 +17,9 @@ const VARIATION_HINTS = [
 ];
 
 function buildVariationPrompt(base: string, index: number): string {
-  const hint = VARIATION_HINTS[index] ?? `Distinct visual variation ${index + 1} with a different composition and lighting treatment.`;
+  const hint =
+    VARIATION_HINTS[index] ??
+    `Distinct visual variation ${index + 1} with a different composition and lighting treatment.`;
   if (!hint) return base;
   const split = base.indexOf("\n\nSTRICT OUTPUT:");
   return split === -1
@@ -25,9 +27,12 @@ function buildVariationPrompt(base: string, index: number): string {
     : base.slice(0, split) + `\n\nVariation: ${hint}` + base.slice(split);
 }
 
-async function generateOne(prompt: string, id: number): Promise<BulkVariantResult> {
+async function generateOne(
+  prompt: string,
+  id: number,
+): Promise<BulkVariantResult> {
   try {
-    const res = await fetch("/api/generate-image", {
+    const res = await fetch(`${process.env.BASE_URL}generate-image`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt }),
@@ -36,9 +41,19 @@ async function generateOne(prompt: string, id: number): Promise<BulkVariantResul
     if (data.success && data.imageData) {
       return { id, url: data.imageData, loading: false, error: null };
     }
-    return { id, url: null, loading: false, error: data.error || "No image returned" };
+    return {
+      id,
+      url: null,
+      loading: false,
+      error: data.error || "No image returned",
+    };
   } catch (err) {
-    return { id, url: null, loading: false, error: err instanceof Error ? err.message : "Generation failed" };
+    return {
+      id,
+      url: null,
+      loading: false,
+      error: err instanceof Error ? err.message : "Generation failed",
+    };
   }
 }
 
@@ -46,31 +61,34 @@ export function useBulkGeneration() {
   const [variants, setVariants] = useState<BulkVariantResult[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const generateBulk = useCallback(async (basePrompt: string, count: number) => {
-    const n = Math.max(1, Math.min(MAX_VARIANTS, count));
-    setIsGenerating(true);
-    setVariants(
-      Array.from({ length: n }, (_, i) => ({
-        id: i,
-        url: null,
-        loading: true,
-        error: null,
-      }))
-    );
+  const generateBulk = useCallback(
+    async (basePrompt: string, count: number) => {
+      const n = Math.max(1, Math.min(MAX_VARIANTS, count));
+      setIsGenerating(true);
+      setVariants(
+        Array.from({ length: n }, (_, i) => ({
+          id: i,
+          url: null,
+          loading: true,
+          error: null,
+        })),
+      );
 
-    // Fire all N requests in parallel — each resolves independently
-    const promises = Array.from({ length: n }, (_, i) =>
-      generateOne(buildVariationPrompt(basePrompt, i), i).then(result => {
-        setVariants(prev =>
-          prev.map(v => (v.id === result.id ? result : v))
-        );
-        return result;
-      })
-    );
+      // Fire all N requests in parallel — each resolves independently
+      const promises = Array.from({ length: n }, (_, i) =>
+        generateOne(buildVariationPrompt(basePrompt, i), i).then((result) => {
+          setVariants((prev) =>
+            prev.map((v) => (v.id === result.id ? result : v)),
+          );
+          return result;
+        }),
+      );
 
-    await Promise.allSettled(promises);
-    setIsGenerating(false);
-  }, []);
+      await Promise.allSettled(promises);
+      setIsGenerating(false);
+    },
+    [],
+  );
 
   const reset = useCallback(() => {
     setVariants([]);
